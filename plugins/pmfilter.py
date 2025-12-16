@@ -62,15 +62,32 @@ def generate_random_alphanumeric():
   
 def get_shortlink_sync(url):
     try:
-        rget = requests.get(f"https://{STREAM_SITE}/api?api={STREAM_API}&url={url}&alias={generate_random_alphanumeric()}")
+        rget = requests.get(
+            f"https://{STREAM_SITE}/api",
+            params={
+                "api": STREAM_API,
+                "url": url,
+                "alias": generate_random_alphanumeric()
+            },
+            timeout=10
+        )
+
         rjson = rget.json()
-        if rjson["status"] == "success" or rget.status_code == 200:
+
+        # ✅ strict check (IMPORTANT)
+        if (
+            rjson.get("status") == "success"
+            and rjson.get("shortenedUrl")
+            and rjson["shortenedUrl"].startswith("http")
+        ):
             return rjson["shortenedUrl"]
-        else:
-            return url
+
     except Exception as e:
         print(f"Error in get_shortlink_sync: {e}")
-        return url
+
+    # 🛡️ fallback (ye sabse important hai)
+    return url
+
 
 async def get_shortlink(url):
     loop = asyncio.get_event_loop()
