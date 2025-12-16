@@ -54,6 +54,14 @@ BUTTONS2 = {}
 SPELL_CHECK = {}
 # ENABLE_SHORTLINK = ""
 
+def safe_url(url, fallback):
+    if not isinstance(url, str):
+        return fallback
+    url = url.strip()
+    if not url.startswith(("http://", "https://")):
+        return fallback
+    return url
+
 def generate_random_alphanumeric():
     """Generate a random 8-letter alphanumeric string."""
     characters = string.ascii_letters + string.digits
@@ -1479,8 +1487,8 @@ async def cb_handler(client: Client, query: CallbackQuery):
         else:
             await query.answer("Yᴏᴜ ᴅᴏɴ'ᴛ ʜᴀᴠᴇ sᴜғғɪᴄɪᴀɴᴛ ʀɪɢᴛs ᴛᴏ ᴅᴏ ᴛʜɪs !", show_alert=True)
 
-    elif lazyData.startswith("generate_stream_link"):
-        _, file_id = lazyData.split(":")
+    elif query.data.startswith("generate_stream_link"):
+        _, file_id = query.data.split(":")
         try:
             user_id = query.from_user.id
             username = query.from_user.mention 
@@ -1488,11 +1496,15 @@ async def cb_handler(client: Client, query: CallbackQuery):
                 chat_id=LOG_CHANNEL,
                 file_id=file_id,
             )
-            fileName = {quote_plus(get_name(log_msg))}
+            fileName = get_name(log_msg)
+
             lazy_stream = f"{URL}watch/{str(log_msg.id)}/{quote_plus(get_name(log_msg))}?hash={get_hash(log_msg)}"
             lazy_download = f"{URL}{str(log_msg.id)}/{quote_plus(get_name(log_msg))}?hash={get_hash(log_msg)}"
             hp_link = await get_shortlink(lazy_download)
             ph_link = await get_shortlink(lazy_stream)
+            hp_link = safe_url(hp_link, lazy_download)
+            ph_link = safe_url(ph_link, lazy_stream)
+
             buttons = []
             if await db.has_premium_access(user_id):                               
                 buttons = [[
@@ -1518,7 +1530,13 @@ async def cb_handler(client: Client, query: CallbackQuery):
             query.message.reply_markup = query.message.reply_markup or []
             query.message.reply_markup.inline_keyboard.pop(0)
             query.message.reply_markup.inline_keyboard.insert(0, buttons)
-            await query.message.edit_reply_markup(InlineKeyboardMarkup(buttons))
+            try:
+                await query.message.edit_reply_markup(
+                    InlineKeyboardMarkup(buttons)
+                )
+            except Exception as e:
+                print("Edit markup failed:", e)
+
             await log_msg.reply_text(
                     text=f"#LinkGenrated\n\nIᴅ : <code>{user_id}</code>\nUꜱᴇʀɴᴀᴍᴇ : {username}\n\nNᴀᴍᴇ : {fileName}",
                     quote=True,
