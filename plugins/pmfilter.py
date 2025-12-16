@@ -54,14 +54,6 @@ BUTTONS2 = {}
 SPELL_CHECK = {}
 # ENABLE_SHORTLINK = ""
 
-def safe_url(url, fallback):
-    if not isinstance(url, str):
-        return fallback
-    url = url.strip()
-    if not url.startswith(("http://", "https://")):
-        return fallback
-    return url
-
 def generate_random_alphanumeric():
     """Generate a random 8-letter alphanumeric string."""
     characters = string.ascii_letters + string.digits
@@ -70,32 +62,15 @@ def generate_random_alphanumeric():
   
 def get_shortlink_sync(url):
     try:
-        rget = requests.get(
-            f"https://{STREAM_SITE}/api",
-            params={
-                "api": STREAM_API,
-                "url": url,
-                "alias": generate_random_alphanumeric()
-            },
-            timeout=10
-        )
-
+        rget = requests.get(f"https://{STREAM_SITE}/api?api={STREAM_API}&url={url}&alias={generate_random_alphanumeric()}")
         rjson = rget.json()
-
-        # ✅ strict check (IMPORTANT)
-        if (
-            rjson.get("status") == "success"
-            and rjson.get("shortenedUrl")
-            and rjson["shortenedUrl"].startswith("http")
-        ):
+        if rjson["status"] == "success" or rget.status_code == 200:
             return rjson["shortenedUrl"]
-
+        else:
+            return url
     except Exception as e:
         print(f"Error in get_shortlink_sync: {e}")
-
-    # 🛡️ fallback (ye sabse important hai)
-    return url
-
+        return url
 
 async def get_shortlink(url):
     loop = asyncio.get_event_loop()
@@ -1487,8 +1462,8 @@ async def cb_handler(client: Client, query: CallbackQuery):
         else:
             await query.answer("Yᴏᴜ ᴅᴏɴ'ᴛ ʜᴀᴠᴇ sᴜғғɪᴄɪᴀɴᴛ ʀɪɢᴛs ᴛᴏ ᴅᴏ ᴛʜɪs !", show_alert=True)
 
-    elif query.data.startswith("generate_stream_link"):
-        _, file_id = query.data.split(":")
+    elif lazyData.startswith("generate_stream_link"):
+        _, file_id = lazyData.split(":")
         try:
             user_id = query.from_user.id
             username = query.from_user.mention 
@@ -1496,15 +1471,11 @@ async def cb_handler(client: Client, query: CallbackQuery):
                 chat_id=LOG_CHANNEL,
                 file_id=file_id,
             )
-            fileName = get_name(log_msg)
-
+            fileName = {quote_plus(get_name(log_msg))}
             lazy_stream = f"{URL}watch/{str(log_msg.id)}/{quote_plus(get_name(log_msg))}?hash={get_hash(log_msg)}"
             lazy_download = f"{URL}{str(log_msg.id)}/{quote_plus(get_name(log_msg))}?hash={get_hash(log_msg)}"
             hp_link = await get_shortlink(lazy_download)
             ph_link = await get_shortlink(lazy_stream)
-            hp_link = safe_url(hp_link, lazy_download)
-            ph_link = safe_url(ph_link, lazy_stream)
-
             buttons = []
             if await db.has_premium_access(user_id):                               
                 buttons = [[
@@ -1530,13 +1501,7 @@ async def cb_handler(client: Client, query: CallbackQuery):
             query.message.reply_markup = query.message.reply_markup or []
             query.message.reply_markup.inline_keyboard.pop(0)
             query.message.reply_markup.inline_keyboard.insert(0, buttons)
-            try:
-                await query.message.edit_reply_markup(
-                    InlineKeyboardMarkup(buttons)
-                )
-            except Exception as e:
-                print("Edit markup failed:", e)
-
+            await query.message.edit_reply_markup(InlineKeyboardMarkup(buttons))
             await log_msg.reply_text(
                     text=f"#LinkGenrated\n\nIᴅ : <code>{user_id}</code>\nUꜱᴇʀɴᴀᴍᴇ : {username}\n\nNᴀᴍᴇ : {fileName}",
                     quote=True,
